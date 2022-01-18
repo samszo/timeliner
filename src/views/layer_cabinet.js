@@ -4,14 +4,17 @@ import { IconButton } from '../ui/icon_button.js'
 import { utils } from '../utils/utils.js'
 import { Theme } from '../theme.js'
 import { UINumber } from '../ui/ui_number.js'
+import { UILoop } from '../ui/ui_loop.js'
 
 
 const { STORAGE_PREFIX, style } = utils
 
 function LayerCabinet(data, dispatcher) {
+	var me = this;
 	var layer_store = data.get('layers');
 
-	var div = document.createElement('div');
+	var div = document.createElement('div')
+	div.id= 'divLayerCabinet';
 
 	var top = document.createElement('div');
 	top.style.cssText = 'margin: 0px; top: 0; left: 0; height: ' + LayoutConstants.MARKER_TRACK_HEIGHT + 'px';
@@ -60,6 +63,11 @@ function LayerCabinet(data, dispatcher) {
 		dispatcher.fire('controls.stop');
 	});
 
+	var loop_button = new IconButton(16, 'stop', 'stop', dispatcher);
+	style(stop_button.dom, button_styles, { marginTop: '2px' } );
+	stop_button.onClick(function(e) {
+		dispatcher.fire('controls.stop');
+	});
 
 	var undo_button = new IconButton(16, 'undo', 'undo', dispatcher);
 	style(undo_button.dom, op_button_styles);
@@ -71,6 +79,11 @@ function LayerCabinet(data, dispatcher) {
 	style(redo_button.dom, op_button_styles);
 	redo_button.onClick(function() {
 		dispatcher.fire('controls.redo');
+	});
+
+	var loop_button = new UILoop();
+	loop_button.onClick(function() {
+		dispatcher.fire('controls.loop');
 	});
 
 	var range = document.createElement('input');
@@ -142,10 +155,12 @@ function LayerCabinet(data, dispatcher) {
 	top.appendChild(totalTime.dom)
 	top.appendChild(play_button.dom);
 	top.appendChild(stop_button.dom);
+	top.appendChild(loop_button.dom);
 	top.appendChild(range);
 
 
 	var operations_div = document.createElement('div');
+	operations_div.id = 'divOperations'
 	style(operations_div, {
 		marginTop: '4px',
 		// borderBottom: '1px solid ' + Theme.b
@@ -153,6 +168,14 @@ function LayerCabinet(data, dispatcher) {
 	top.appendChild(operations_div);
 	// top.appendChild(document.createElement('br'));
 
+	//ajoute le titre
+	var titreAnimation = document.createElement('span');
+	titreAnimation.id = 'titreAnimation'
+	titreAnimation.innerHTML = data.title;
+	style(titreAnimation, {
+		margin: '4px',
+	});
+	operations_div.appendChild(titreAnimation);
 
 	// open _alt
 	var file_open = new IconButton(16, 'folder_open_alt', 'Open', dispatcher);
@@ -309,20 +332,21 @@ function LayerCabinet(data, dispatcher) {
 	// var eye_close = new IconButton(16, 'eye_close', 'eye_close', dispatcher);
 	// operations_div.appendChild(eye_close.dom);
 
+	// check
+	var ok = new IconButton(16, 'ok', 'ok', dispatcher);
+	operations_div.appendChild(ok.dom);
+
 
 	// remove layer
 	var minus = new IconButton(16, 'minus', 'minus', dispatcher);
 	operations_div.appendChild(minus.dom);
 
-	// check
-	var ok = new IconButton(16, 'ok', 'ok', dispatcher);
-	operations_div.appendChild(ok.dom);
-
 	// cross
 	var remove = new IconButton(16, 'remove', 'remove', dispatcher);
 	operations_div.appendChild(remove.dom);
-
 	*/
+
+
 
 
 	// range.addEventListener('change', changeRange);
@@ -365,6 +389,10 @@ function LayerCabinet(data, dispatcher) {
 			play_button.setTip('Play');
 		}
 	};
+	this.setTitle = function(data) {
+		let title = data.title=="Untitled" ? data.name : data.title
+		if(document.getElementById('titreAnimation'))document.getElementById('titreAnimation').innerHTML = title;
+	}
 
 	this.setState = function(state) {
 
@@ -408,6 +436,8 @@ function LayerCabinet(data, dispatcher) {
 		var i;
 
 		s = s || 0;
+
+		me.setTitle(layer_store.store.data);
 
 		var layers = layer_store.value;
 		for (i = layer_uis.length; i-- > 0;) {

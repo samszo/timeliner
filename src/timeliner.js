@@ -1,8 +1,10 @@
 /*
  * @author Joshua Koo http://joshuakoo.com
+	Fork from https://github.com/zz85/timeliner
+   @samszo https://samszo@univ-paris8.fr
  */
 
-const TIMELINER_VERSION = "2.0.0-dev";
+const TIMELINER_VERSION = "2.0.1-dev";
 
 import { UndoManager, UndoState } from './utils/util_undo.js'
 import { Dispatcher } from './utils/util_dispatcher.js'
@@ -19,10 +21,19 @@ var STORAGE_PREFIX = utils.STORAGE_PREFIX
 import { ScrollBar } from './ui/scrollbar.js'
 import { DataStore } from './utils/util_datastore.js'
 import { DockingWindow } from './utils/docking_window.js'
+import { cssList } from './utils/cssList.js'
+import { cssTransform } from './utils/cssTransform.js'
 
 var Z_INDEX = 999;
 
+function uuidv4() {
+	return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+	  (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+	);
+  }
+
 function LayerProp(name) {
+	this.id = uuidv4();
 	this.name = name;
 	this.values = [];
 
@@ -39,6 +50,7 @@ function LayerProp(name) {
 function Timeliner(target) {
 	// Dispatcher for coordination
 	var dispatcher = new Dispatcher();
+	var me = this;
 
 	// Data
 	var data = new DataStore();
@@ -150,7 +162,49 @@ function Timeliner(target) {
 		repaintAll();
 	});
 
+	dispatcher.on('idObj.update', function(layer, idObj) {
+		var t = data.get('ui:currentTime').value;
+		var v = utils.timeAtLayer(layer, t);
+		if (v && v.entry) {
+			v.entry.idObj  = idObj;
+		}
+
+		undo_manager.save(new UndoState(data, 'Add idObj'));
+
+		repaintAll();
+	});
+
+	dispatcher.on('prop.update', function(layer, prop) {
+		var t = data.get('ui:currentTime').value;
+		var v = utils.timeAtLayer(layer, t);
+		if (v && v.entry) {
+			v.entry.prop  = prop;
+		}
+
+		undo_manager.save(new UndoState(data, 'Add prop'));
+
+		repaintAll();
+	});
+
+	dispatcher.on('text.update', function(layer, text) {
+		var t = data.get('ui:currentTime').value;
+		var v = utils.timeAtLayer(layer, t);
+		if (v && v.entry) {
+			v.entry.text  = text;
+		}
+
+		undo_manager.save(new UndoState(data, 'Add text'));
+
+		repaintAll();
+	});
+
+	dispatcher.on('layer.delete', function(layer) {
+		deleteLayer(layer);
+		repaintAll();
+	});
+
 	var start_play = null,
+		loop_play = false,
 		played_from = 0; // requires some more tweaking
 
 	dispatcher.on('controls.toggle_play', function() {
@@ -171,6 +225,12 @@ function Timeliner(target) {
 
 	dispatcher.on('controls.play', startPlaying);
 	dispatcher.on('controls.pause', pausePlaying);
+	dispatcher.on('controls.loop', loopPlaying);
+
+	function loopPlaying() {
+		// played_from = timeline.current_frame;
+		loop_play = loop_play ? false : true;
+	}
 
 	function startPlaying() {
 		// played_from = timeline.current_frame;
@@ -216,8 +276,8 @@ function Timeliner(target) {
 		// layer_panel.repaint(s);
 	}
 
-	dispatcher.on('target.notify', function(name, value) {
-		if (target) target[name] = value;
+	dispatcher.on('target.notify', function(layer, value) {
+		if (target) target[layer.id] = {'name':layer.name, 'value':value};
 	});
 
 	dispatcher.on('update.scale', function(v) {
@@ -256,7 +316,11 @@ function Timeliner(target) {
 
 			if (t > data.get('ui:totalTime').value) {
 				// simple loop
-				start_play = performance.now();
+				if(loop_play)start_play = performance.now();
+				else{
+					pausePlaying();
+					setCurrentTime(0);			
+				} 
 			}
 		}
 
@@ -335,7 +399,10 @@ function Timeliner(target) {
 
 	function load(o) {
 		data.setJSON(o);
-		//
+		//vérifie la présence de l'id pour les layers
+		data.data.layers.forEach((l,i)=>l.id = l.id ? l.id : i);
+		//modifie le titre
+		layer_panel.setTitle(data.data);
 		if (data.getValue('ui') === undefined) {
 			data.setValue('ui', {
 				currentTime: 0,
@@ -752,8 +819,18 @@ function Timeliner(target) {
 
 		layer_panel.setState(layer_store);
 	}
-
 	this.addLayer = addLayer;
+
+	function deleteLayer(layer) {
+		layers = layer_store.value;
+		let iLayer = 0;
+		layers.forEach((l,i)=>{
+			if(l.id==layer.id)iLayer=i;
+		});
+		layers.splice(iLayer,1);
+		delete target[layer.id];		
+	}
+	this.deleteLayer = deleteLayer;
 
 	this.dispose = function dispose() {
 
@@ -762,6 +839,59 @@ function Timeliner(target) {
 		domParent.removeChild(ghostpane);
 
 	};
+
+	this.isStyle = function(s) {
+		return cssList[s] ? true : false;
+	};
+	this.isTransform = function(s) {
+		return cssTransform[s] ? true : false;
+	};
+	this.getTransform = function(s) {
+		return cssTransform[s];
+	};
+
+
+	this.getObjetActions=function(){
+		let objActions = {};
+		for (const key in target ){
+			let action = target[key]
+				, ids = action['value'].idObj
+				, params; 
+			if (ids) {
+				const arrIds = ids.split(',');
+				arrIds.forEach(idObj => {				
+					if(!objActions[idObj])objActions[idObj]={'e':document.getElementById(idObj),'actions':{}};
+					let aName = me.isTransform(action['value'].prop) || me.isTransform(action['value'].prop) ? 'styles' : action.name;
+					if(!objActions[idObj].actions[aName]){
+						objActions[idObj].actions[aName]={
+								'action':action.name
+								, 'prop':action['value'].prop
+								,'text':action['value'].text == 'null' ? '' : action['value'].text  
+								,'val':action['value'].value
+								,'styles':{'nb':0}
+						}
+					}
+					params = objActions[idObj].actions[aName];
+					if(me.isTransform(action['value'].prop)){
+						let t = me.getTransform(action['value'].prop);
+						if(!params.styles['transform']) params.styles['transform']='';
+						params.styles['transform']+=` ${action['value'].prop}(${action['value'].value}${t.u ? t.u : ''}) `;
+						params.styles.nb ++;					
+					}
+					if(me.isStyle(action['value'].prop)){
+						params.styles[action['value'].prop]=`${action['value'].value}`;					
+						params.styles.nb ++;					
+					}
+					objActions[idObj].actions[aName]=params;
+				});
+	
+			}
+		}
+		return objActions;
+	
+	}
+
+
 
 	this.setTarget = function(t) {
 		target = t;

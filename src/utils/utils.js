@@ -187,7 +187,10 @@ function timeAtLayer(layer, t) {
 					tween: prev_entry.tween,
 					can_tween: il > 1,
 					value: entry.value,
-					keyframe: true
+					keyframe: true,
+					text:prev_entry.text ? prev_entry.text : 'null',
+					prop:prev_entry.prop ? prev_entry.prop : 'null',
+					idObj:prev_entry.idObj ? prev_entry.idObj : 'null'
 				};
 			}
 			return {
@@ -196,7 +199,10 @@ function timeAtLayer(layer, t) {
 				tween: entry.tween,
 				can_tween: il > 1,
 				value: entry.value,
-				keyframe: true // il > 1
+				keyframe: true, // il > 1
+				text:entry.text ? entry.text : 'null',
+				prop:entry.prop ? entry.prop : 'null',
+				idObj:entry.idObj ? entry.idObj : 'null'
 			};
 		}
 		if (t < entry.time) {
@@ -207,7 +213,10 @@ function timeAtLayer(layer, t) {
 					tween: false,
 					entry: prev_entry,
 					can_tween: true,
-					keyframe: false
+					keyframe: false,
+					text:prev_entry.text ? prev_entry.text : 'null',
+					prop:prev_entry.prop ? prev_entry.prop : 'null',
+					idObj:prev_entry.idObj ? prev_entry.idObj : 'null'
 				};
 			}
 
@@ -225,7 +234,10 @@ function timeAtLayer(layer, t) {
 				value: new_value,
 				tween: prev_entry.tween,
 				can_tween: true,
-				keyframe: false
+				keyframe: false,
+				text:prev_entry.text ? prev_entry.text : 'null',
+				prop:prev_entry.prop ? prev_entry.prop : 'null',
+				idObj:prev_entry.idObj ? prev_entry.idObj : 'null'
 			};
 		}
 	}
